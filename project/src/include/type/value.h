@@ -3,7 +3,7 @@
  */
 #pragma once
 
-#include <cstring>
+#include <string>
 
 #include "type/limits.h"
 #include "type/type.h"

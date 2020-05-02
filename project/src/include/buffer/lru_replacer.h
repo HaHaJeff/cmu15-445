@@ -11,6 +11,8 @@
 
 #include "buffer/replacer.h"
 #include "hash/extendible_hash.h"
+#include <list>
+#include <unordered_map>
 
 namespace cmudb {
 

@@ -14,7 +14,7 @@ find_package(Threads REQUIRED)
 
 # ---[ C++1y Flags
 include(CheckCXXCompilerFlag)
-check_cxx_compiler_flag("-std=c++1y" COMPILER_SUPPORTS_CXX1y)
+check_cxx_compiler_flag("-std=c++14" COMPILER_SUPPORTS_CXX14)
 
 if(COMPILER_SUPPORTS_CXX1y)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
