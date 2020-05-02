@@ -33,6 +33,9 @@ public:
 
 private:
   // add your member variables here
+  using Iterator = typename std::list<T>::iterator;
+  std::list<T> list_;
+  std::unordered_map<T, Iterator> map_;
 };
 
 } // namespace cmudb
