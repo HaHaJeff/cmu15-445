@@ -28,6 +28,7 @@ TEST(BufferPoolManagerTest, SampleTest) {
   for (int i = 1; i < 10; ++i) {
     EXPECT_NE(nullptr, bpm.NewPage(temp_page_id));
   }
+
   // all the pages are pinned, the buffer pool is full
   for (int i = 10; i < 15; ++i) {
     EXPECT_EQ(nullptr, bpm.NewPage(temp_page_id));

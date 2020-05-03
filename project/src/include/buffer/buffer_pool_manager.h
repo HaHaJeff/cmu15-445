@@ -35,6 +35,31 @@ public:
   bool DeletePage(page_id_t page_id);
 
 private:
+  void InitPageMetadata(page_id_t pid, Page* page) {
+    page->page_id_ = pid;
+    page->is_dirty_ = false;
+    page->pin_count_ = 1;
+  }
+
+  void ResetPageMetadata(Page* page) {
+    page->page_id_ = INVALID_PAGE_ID;
+    page->is_dirty_ = false;
+    page->pin_count_ = 0;
+  }
+
+  void SetPageDirty(Page* page) {
+    page->is_dirty_ = true;
+  }
+
+  void SetPageUnpin(Page* page) {
+    --(page->pin_count_);
+  }
+
+  void SetPagePin(Page* page) {
+    ++(page->pin_count_);
+  }
+
+private:
   size_t pool_size_; // number of pages in buffer pool
   Page *pages_;      // array of pages
   DiskManager *disk_manager_;
