@@ -18,7 +18,16 @@ namespace cmudb {
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id,
-                                          page_id_t parent_id) {}
+                                          page_id_t parent_id) 
+{
+  int max_size = (PAGE_SIZE-sizeof(BPlusTreeInternalPage))/(sizeof(KeyType) + sizeof(ValueType));
+  SetPageType(IndexPageType::INTERNAL_PAGE);                                    
+  // first key is valid
+  SetSize(1);
+  SetMaxSize(max_size);
+  SetPageId(page_id);
+  SetParentPageId(parent_page_id_);
+}
 /*
  * Helper method to get/set the key associated with input "index"(a.k.a
  * array offset)
@@ -26,20 +35,42 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id,
 INDEX_TEMPLATE_ARGUMENTS
 KeyType B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyAt(int index) const {
   // replace with your own code
-  KeyType key = {};
+  assert(0 <= index && index < GetSize());
+  KeyType key = array[index].first;
   return key;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {}
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
+  assert(0 <= index && index < GetSize());
+  array[index].first = key;
+}
 
 /*
  * Helper method to find and return array index(or offset), so that its value
  * equals to input "value"
  */
 INDEX_TEMPLATE_ARGUMENTS
+int BinarySearch(const MappingType* array, size_t size, const ValueType& value) {
+  size_t start = 0, end = size - 1;
+  size_t middle = start + (end - start) >> 1;
+
+  while (start <= end) {
+    if (array[middle].second < value) {
+      end = middle - 1;  
+    } else if (array[middle].second > value{
+      start = middle + 1;
+    } else {
+      break;
+    }
+  }
+
+  return start <= end ? middle : -1;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
-  return 0;
+  return BinarySearch(array, GetSize(), value);
 }
 
 /*
@@ -47,7 +78,10 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
  * offset)
  */
 INDEX_TEMPLATE_ARGUMENTS
-ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const { return 0; }
+ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const { 
+  assert(0 <= index && index <= GetSize());
+  return array[index].second; 
+}
 
 /*****************************************************************************
  * LOOKUP
@@ -61,7 +95,20 @@ INDEX_TEMPLATE_ARGUMENTS
 ValueType
 B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
                                        const KeyComparator &comparator) const {
-  return INVALID_PAGE_ID;
+  ValueType value;
+  size_t left = 0, right = GetSize() - 1;
+  if (comparator(key, array[left].first) < 0) {
+    value = array[left].second;
+  } else if (comparator(key, array[right].first) > 0) {
+    value = array[right].second;
+  } else {
+    for (size_t i = 1; i <= right; i++) {
+      if (comparator(key, arrar[i].first) < 0) {
+        value = array[i-1].second;  
+      }
+    }
+  }
+  return value;
 }
 
 /*****************************************************************************
