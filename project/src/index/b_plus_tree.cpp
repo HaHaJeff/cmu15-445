@@ -44,6 +44,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
 {
   Page* root_page = buffer_pool_manager_->FetchPage(root_page_id_);
   BPlusTreePage* btree_root_page = reinterpret_cast<BPlusTreePage*>(root_page);
+  
   return false;
 }
 
@@ -214,8 +215,25 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key,
-                                                         bool leftMost) {
-  return nullptr;
+                                                         bool leftMost)
+{
+  page_id_t page_id = root_page_id_;
+  Page* page = buffer_pool_manager_->FetchPage(page_id);
+  BPlusTreePage* btree_page = reinterpret_cast<BPlusTreePage*>(page);
+
+  while (page != nullptr && !btree_page->IsLeafPage()) {
+    btree_page = reinterpret_cast<BPlusTreeInternalPage*>(page);
+    page_id_t old_page_id = page_id;
+    if (leftMost == true) {
+      page_id = btree_page->ValueAt(0);
+    } else {
+      page_id = btree_page->Loopup(key, comparator_);
+    }
+    buffer_pool_manager_->UnpinPage(old_page_id);
+    page = buffer_pool_manager_->FetchPage(page_id);
+  }
+  BPlusTreeLeafPage* btree_leaf_page = reinterpret_cast<BPlusTreeLeafPage*>(btree_leaf_page);
+  return btree_leaf_page;
 }
 
 /*
