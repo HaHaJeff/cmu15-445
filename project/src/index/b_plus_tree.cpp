@@ -44,8 +44,15 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
 {
   Page* root_page = buffer_pool_manager_->FetchPage(root_page_id_);
   BPlusTreePage* btree_root_page = reinterpret_cast<BPlusTreePage*>(root_page);
-  
-  return false;
+  BPluseTreeLeafPage* btree_leaf_page = FindLeafPage(key); 
+  ValueType value;
+
+  if (btree_leaf_page->Lookup(key, value, comparator_)) {
+    result.push_back(value);
+  } else {
+    return false;
+  }
+  return true;
 }
 
 /*****************************************************************************
@@ -219,10 +226,10 @@ B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key,
 {
   page_id_t page_id = root_page_id_;
   Page* page = buffer_pool_manager_->FetchPage(page_id);
-  BPlusTreePage* btree_page = reinterpret_cast<BPlusTreePage*>(page);
+  BPlusTreePage* btree_page = reinterpret_cast<BPlusTreePage*>(page->GetData());
 
   while (page != nullptr && !btree_page->IsLeafPage()) {
-    btree_page = reinterpret_cast<BPlusTreeInternalPage*>(page);
+    btree_page = reinterpret_cast<BPlusTreeInternalPage*>(page->GetData());
     page_id_t old_page_id = page_id;
     if (leftMost == true) {
       page_id = btree_page->ValueAt(0);
@@ -232,7 +239,7 @@ B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key,
     buffer_pool_manager_->UnpinPage(old_page_id);
     page = buffer_pool_manager_->FetchPage(page_id);
   }
-  BPlusTreeLeafPage* btree_leaf_page = reinterpret_cast<BPlusTreeLeafPage*>(btree_leaf_page);
+  BPlusTreeLeafPage* btree_leaf_page = reinterpret_cast<BPlusTreeLeafPage*>(btree_page);
   return btree_leaf_page;
 }
 
