@@ -52,6 +52,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
   } else {
     return false;
   }
+  buffer_pool_manager_->UnpinPage(btree_leaf_page->GetPageId(), false);
   return true;
 }
 
@@ -111,16 +112,19 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value,
 {
   BPluseTreeLeafPage* btree_leaf_page = FindLeafPage(key, false);                                 
   ValueType tmp;
+
+  // insert duplicate key
   if (btree_leaf_page->Lookup(key, tmp, comparator_)) {
     return false;
   } else {
+    // safe node
     if (btree_leaf_page->GetSize() < btree_leaf_page->GetMaxSize()) {
       btree_leaf_page->Insert(key, value, comparator_);
     } else {
       BPluseTreeLeafPage* btree_new_laef_page = Split(btree_leaf_page);
+
       btree_new_laef_page->SetNextPageId(btree_leaf_page->GetNextPageId());
       btree_leaf_page->SetNextPageId(btree_new_leaf_page->GetPageId());
-      btree_new_leaf_page->SetParentPageId(leaf->GetParentPageId());
       KeyType mid_key = btree_new_laef_page->KeyAt(0);
 
       InsertIntoParent(btree_leaf_page, mid_key, btree_new_laef_page);
@@ -131,9 +135,10 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value,
       } else { // Insert into right half
         btree_new_leaf_page->Insert(key, value, comparator_);
       }
+      buffer_pool_manager_->UnpinPage(btree_new_laef_page->GetPageId(), true);
     }
   }
-
+  buffer_pool_manager_->UnpinPage(btree_laef_page->GetPageId(), true);
   return true;
 }
 
@@ -145,7 +150,18 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value,
  * of key & value pairs from input page to newly created page
  */
 INDEX_TEMPLATE_ARGUMENTS
-template <typename N> N *BPLUSTREE_TYPE::Split(N *node) { return nullptr; }
+template <typename N> N *BPLUSTREE_TYPE::Split(N *node)
+{
+  page_id_t page_id = INVALID_PAGE_ID;
+  Page* page = buffer_pool_manager_->NewPage(page_id);
+  if (page == nullptr) {
+    throw Exception(EXCEPTION_TYPE_INDEX, "out of memory");
+  }
+  N* new_node = reinterpret_cast<N*>(page->GetData());
+  new_node->Init(page_id, node->GetParentPageId());
+  node->MoveHalfTo(new_node, buffer_pool_manager_);
+  return new_node; 
+}
 
 /*
  * Insert key & value pair into internal page after split
@@ -160,7 +176,41 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
                                       const KeyType &key,
                                       BPlusTreePage *new_node,
-                                      Transaction *transaction) {}
+                                      Transaction *transaction)
+{
+  // also means old_root_page is full
+  if (old_node->IsRootPage()) {
+    // first generate new root_page
+    Page* new_root_page = buffer_pool_manager_->NewPage(root_page_id_);
+    if (new_root_page == nullptr) {
+      throw Exception(EXCEPTION_TYPE_INDEX, "out of memory");
+    }
+    BPlusTreeInternalPage* btree_root_page = reinterpret_cast<BPlusTreeInternalPage*>(new_root_page->GetData());
+    btree_root_page->PopulateNewRoot(old_node->GetPageId(), key, new_node->GetPageId());
+    old_node->SetParentPageId(root_page_id_);
+    new_node->SetParentPageId(root_page_id_);
+    UpdateRootPageId(false);
+  } else { 
+    Page* old_page = old_node->GetParentPageId();
+    BPlusTreeInternalPage* btree_old_page = reinterpret_cast<BPlusTreeInternalPage*>(old_page->GetData());
+    // parent page is not full
+    if (btree_old_page->GetSize() < btree_parent_page->GetMaxSize()) {
+      btree_old_page->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
+    } else {
+      BPlusTreeInternalPage* btree_new_page = Split(btree_old_page);
+      KeyType mid_key = btree_new_page->KeyAt(0);
+      if (comparator_(key, mid_key) < 0) {
+        btree_old_page->InsertNodeAfter(old_node.GetPageId(), key, new_old->GetPageId());
+      } else {
+        btree_new_page->InsertNodeAfter(old_node.GetPageId(), key, new_old->GetPageId());
+        new_old->SetParentPageId(btree_new_page->GetPageId());
+      }
+      InsertIntoParent(btree_old_page, key, btree_new_page);
+      buffer_pool_manager_->UnpinPage(btree_new_page->GetPageId(), true);
+    }
+    buffer_pool_manager_->UnpinPage(btree_old_page->GetPageId(), true);
+  }
+}
 
 /*****************************************************************************
  * REMOVE
@@ -173,7 +223,13 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
  * necessary.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
+void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction)
+{
+  if (IsEmpty()) {
+    return;
+  }
+
+}
 
 /*
  * User needs to first find the sibling of input page. If sibling's size + input
