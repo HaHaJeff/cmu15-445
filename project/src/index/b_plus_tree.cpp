@@ -261,7 +261,9 @@ template <typename N>
 bool BPLUSTREE_TYPE::Coalesce(
     N *&neighbor_node, N *&node,
     BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *&parent,
-    int index, Transaction *transaction) {
+    int index, Transaction *transaction)
+{
+  node->MoveAllTo(neighbor_node, index, buffer_pool_manager_);
   return false;
 }
 

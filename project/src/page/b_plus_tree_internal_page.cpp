@@ -287,6 +287,9 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
   BPlusTreeInternalPage *btree_internal_parent_page =
       reinterpret_cast<BPlusTreeInternalPage *>(page->GetData());
   SetKeyAt(0, btree_internal_parent_page->KeyAt(index_in_parent));
+  btree_internal_parent_page->Remove(index_in_parent);
+
+  buffer_pool_manager->UnpinPage(parent_page_id, true);
 
   recipient->CopyAllFrom(array, size, buffer_pool_manager);
   IncreaseSize(-1 * size);
