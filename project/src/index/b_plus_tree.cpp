@@ -44,7 +44,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
 {
   Page* root_page = buffer_pool_manager_->FetchPage(root_page_id_);
   BPlusTreePage* btree_root_page = reinterpret_cast<BPlusTreePage*>(root_page);
-  BPluseTreeLeafPage* btree_leaf_page = FindLeafPage(key); 
+  BPluseTreeLeafPage* btree_leaf_page = FindLeafPage(key, false); 
   ValueType value;
 
   if (btree_leaf_page->Lookup(key, value, comparator_)) {
@@ -228,7 +228,15 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction)
   if (IsEmpty()) {
     return;
   }
+  BPlusTreeLeafPage* btree_leaf_page = FindLeafPage(key, false);
+  
+  if (btree_leaf_page == nullptr) {
+    return;
+  }
 
+  if (btree_leaef_page->GetSize() < btree_leaf_page->GetMinSize()) {
+    CoalesceOrRedistribute(btree_leaf_page, transaction);
+  }
 }
 
 /*
@@ -264,6 +272,10 @@ bool BPLUSTREE_TYPE::Coalesce(
     int index, Transaction *transaction)
 {
   node->MoveAllTo(neighbor_node, index, buffer_pool_manager_);
+  buffer_pool_manager_->DeletePage(node->GetPageId());
+  if (parent->GetSize() < parent->GetMinSize()) {
+    return CoalesceOrRedistribute(parent, transaction);
+  }
   return false;
 }
 
@@ -291,6 +303,25 @@ void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {}
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
+  int size = old_root_page->GetSize();
+  if (!old_root_page->IsLeafPage()) {
+    if (size == 1) {
+      BPlusTreeInternalPage* old_root_node = reinterpret_cast<BPlusTreeInternalPage*>(old_root_page);
+      root_page_id_ = old_root_node->ValueAt(0);
+      UpdateRootPageId(false);
+      Page* new_root_page = buffer_pool_manager_->FetchPage(root_page_id_);
+      BPlusTreePage* new_root_node = reinterpret_cast<BPlusTreePage*>(page->GetData());
+      new_root_node->SetParentPageId(INVALID_PAGE_ID);
+      buffer_pool_manager_->UnpinPage(new_root_node->GetPageId(), true); 
+      return true;
+    }
+  } else {
+    if (old_root_page->GetSize() == 0) {
+      root_page_id_ = INVALID_PAGE_ID;
+      UpdateRootPageId(false);
+      return true;
+    }
+  }
   return false;
 }
 
